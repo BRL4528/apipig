@@ -4,7 +4,10 @@ coverage
 node_modules/
 build/
 temp/
+video_7kg/
 .env
+*.avi
+*.zip
 ormconfig.json
 dist
 

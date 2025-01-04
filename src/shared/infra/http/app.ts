@@ -17,7 +17,6 @@ import { spawn, execSync, exec } from 'child_process';
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 import ngrok from '@ngrok/ngrok';
-
 import uploadConfig from '@config/upload';
 import AppError from '@shared/errors/AppError';
 import routes from './routes';
@@ -27,6 +26,12 @@ import routes from './routes';
 import '@shared/infra/typeorm';
 import '@shared/container';
 import { UUIDV4 } from 'sequelize';
+import axios, { AxiosResponse } from 'axios';
+
+interface PropsHandleEsp {
+  espSocket: WebSocket;
+  res: Response<any>;
+}
 
 const app = express();
 
@@ -68,8 +73,11 @@ const io = new Server(serverHttp, {
     origin: '*',
   },
 });
-
+const espWsUrl = 'ws://10.42.0.164:81';
 const wss = new WebSocket.Server({ server: serverHttp });
+
+
+
 
 io.on('connection', socket => {
   console.log(`Usuário conectado no socket ${socket.id}`);
@@ -178,53 +186,53 @@ app.get('/shutdown', async (req, res) => {
   execSync("echo 'jet' | sudo -S shutdown -h now")
 });
 
-const videosDir = '/home/jet/projects/opencv_test/video';
+// const videosDir = '/home/jet/projects/opencv_test/video';
 
-app.get('/record-video/:videoComand', (req, res) => {
+app.get('/record-video/', (req, res) => {
   try {
-    const { videoComand } = req.params;
-    console.log('comando do video', videoComand)
+    // const { videoComand } = req.params;
+    // console.log('comando do video', videoComand)
 
-    if (videoComand !== 'gravar video') {
-      const stringFormated = `/home/jet/projects/opencv_test/video/${videoComand}`
-      cppProcess = spawn("/home/jet/projects/opencv_test/main", [stringFormated])
+    // if (videoComand !== 'gravar video') {
+    const stringFormated = `/home/jet/pigtec/opecv-camera/build/WebcamCapture`
+    cppProcess = spawn("/home/jet/pigtec/opecv-camera/build/WebcamCapture", [stringFormated])
 
-
-      cppProcess.stdout.on('data', (data: any) => {
-        console.log(`Saída do programa C++: ${data}`);
-        // Aqui você pode enviar a saída para o cliente WebSocket, se necessário
-      });
-
-      cppProcess.stderr.on('data', (data: any) => {
-        console.error(`Erro do programa C++: ${data}`);
-        wss.clients.forEach(function each(client) {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send('program_error');
-          }
-        });
-        // Aqui você pode lidar com os erros do programa C++
-      });
-
-      res.json({ video: "http://192.168.101.56:8080/bgr" });
-      return
-    }
-
-    cppProcess = spawn("/home/jet/projects/opencv_test/main", [videoComand])
 
     cppProcess.stdout.on('data', (data: any) => {
       console.log(`Saída do programa C++: ${data}`);
       // Aqui você pode enviar a saída para o cliente WebSocket, se necessário
     });
 
-    cppProcess.stderr.on('data', (data: any) => {
-      console.error(`Erro do programa C++: ${data}`);
-      wss.clients.forEach(function each(client) {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send('program_error');
-        }
-      });
-      // Aqui você pode lidar com os erros do programa C++
-    });
+    //   cppProcess.stderr.on('data', (data: any) => {
+    //     console.error(`Erro do programa C++: ${data}`);
+    //     wss.clients.forEach(function each(client) {
+    //       if (client.readyState === WebSocket.OPEN) {
+    //         client.send('program_error');
+    //       }
+    //     });
+    //     // Aqui você pode lidar com os erros do programa C++
+    //   });
+
+    //   res.json({ video: "http://192.168.101.56:8080/bgr" });
+    //   return
+    // }
+
+    // cppProcess = spawn("/home/jet/projects/opencv_test/main", [videoComand])
+
+    // cppProcess.stdout.on('data', (data: any) => {
+    //   console.log(`Saída do programa C++: ${data}`);
+    //   // Aqui você pode enviar a saída para o cliente WebSocket, se necessário
+    // });
+
+    // cppProcess.stderr.on('data', (data: any) => {
+    //   console.error(`Erro do programa C++: ${data}`);
+    //   wss.clients.forEach(function each(client) {
+    //     if (client.readyState === WebSocket.OPEN) {
+    //       client.send('program_error');
+    //     }
+    //   });
+    //   // Aqui você pode lidar com os erros do programa C++
+    // });
 
     // cppProcess.stdout.on('data', (data: any) => {
     //   console.log(`Saída do programa C++: ${data}`);
@@ -247,21 +255,22 @@ app.get('/stop-recording', (req, res) => {
   res.json({ video: "gravação finalizada!" });
 });
 
-app.get('/list-videos', (req, res) => {
 
-  fs.readdir(videosDir, (err, files) => {
-    if (err) {
-      console.error(`Erro ao ler diretório de vídeos: ${err}`);
-      return res.status(500).json({ error: 'Erro ao ler diretório de vídeos' });
-    }
+// app.get('/list-videos', (req, res) => {
 
-    const videos = files.filter(file => path.extname(file).toLowerCase() === '.mp4');
+//   fs.readdir(videosDir, (err, files) => {
+//     if (err) {
+//       console.error(`Erro ao ler diretório de vídeos: ${err}`);
+//       return res.status(500).json({ error: 'Erro ao ler diretório de vídeos' });
+//     }
 
-    const videoPaths = videos.map(video => path.join(videosDir, video));
+//     const videos = files.filter(file => path.extname(file).toLowerCase() === '.mp4');
 
-    res.json({ videos: videoPaths });
-  });
-});
+//     const videoPaths = videos.map(video => path.join(videosDir, video));
+
+//     res.json({ videos: videoPaths });
+//   });
+// });
 
 
 app.get('/spawn', async (req, res) => {
@@ -274,9 +283,9 @@ app.get('/spawn', async (req, res) => {
     mountVideo,
     idScores,
     qtdCurrent,
+    balance,
   } = req.query;
 
-  console.log('VEEERRRR', req.query)
 
   // const data = {
   //   quantity: 0,
@@ -303,11 +312,23 @@ app.get('/spawn', async (req, res) => {
     //   });
 
     //   const dataFormated: { id: string } = await response.json();
+    if (balance === 'online') {
+      try {
+
+        const espSocket = new WebSocket(espWsUrl);
+        await handleConectEsp8266({espSocket, res})
+      } catch (err) {
+        console.log('Erro na conexão com banalnça: ', err)
+        res.status(500).json({ error: `Erro na conexão com balança` });
+        return;
+      }
+    }
+
 
     idCounting = idScores;
 
     // Iniciar o programa C++ como um processo separado
-    cppProcess = spawn('/home/jet/projects/darknet_opencv/main', [
+    cppProcess = spawn('/home/jet/pigtec/pigtec-cpp/main', [
       idCounting,
       cfg,
       names,
@@ -343,6 +364,7 @@ app.get('/spawn', async (req, res) => {
       });
     });
 
+
     res.status(200).json({ message: 'Programa C++ iniciado' });
   } catch (e) {
     console.log(e)
@@ -351,6 +373,48 @@ app.get('/spawn', async (req, res) => {
       .json({ message: `Problemas ao executar programa. ERROR: ${e}` });
   }
 });
+
+async function handleConectEsp8266({espSocket, res}: PropsHandleEsp) {
+  try {
+    espSocket.on('open', () => {
+      console.log('Conectado ao WebSocket do ESP');
+    });
+
+    espSocket.on('message', (data: any) => {
+
+      // Converte os dados de Buffer para string
+      const msgString = Buffer.from(data).toString();
+
+      // Aqui você pode tratar os dados, por exemplo, removendo os caracteres indesejados
+      // Como o ESP pode estar enviando valores como '-10.3\r\n', você pode querer limpar ou ajustar isso.
+      // Exemplo: remova os caracteres '\r\n' e separe as leituras em um array
+      const readings = msgString.split("\r\n").filter((value) => value.trim() !== "");
+
+      // Se você quiser enviar a última leitura:
+      const latestReading = readings[readings.length - 1];
+      console.log('Última leitura:', latestReading);
+
+
+      // Enviar os dados para todos os clientes conectados
+      wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+          // Escolha o que enviar: latestReading ou averageReading
+          client.send(`scaleData ${msgString}`);
+        }
+      });
+
+      espSocket.on('close', () => {
+        console.log('Cliente desconectado');
+      });
+    });
+
+    espSocket.on('error', (err: any) => {
+      console.error('Erro na conexão com o ESP:', err);
+    });
+  } catch (err) {
+    console.log('Error', err)
+  }
+}
 //STREAM 2
 
 app.get('/video', (req, res) => {
@@ -402,40 +466,52 @@ app.get('/videos', (req, res) => {
   res.json(videosMap);
 });
 
-app.get('/activitie-database', async (req, res) => {
-
+app.get('/activitie-balance', async (req: Request, res: Response): Promise<void> => {
   try {
-    const nickname = 'upl1'
-    const timeoutPromise = new Promise((_, reject) =>
+    const espSocket = new WebSocket(espWsUrl);
+    handleConectEsp8266({espSocket, res})
+  } catch (error: unknown) {
+    console.log('error', error)
+  }
+});
+
+app.get('/activitie-database', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const nickname: string = 'upl1';
+
+    // Timeout promise para rejeitar após 5 segundos
+    const timeoutPromise: Promise<never> = new Promise((_, reject) =>
       setTimeout(() => reject(new Error('Tempo limite excedido')), 5000)
     );
-    
-    const response = await Promise.race([
-      fetch('https://node.pigtek.com.br/sessions-farms', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ nickname })
-      }),
-      timeoutPromise
-    ]);
 
-    // Verifica se o status é de sucesso (200)
-    if (response) {
-      res.status(200).json({ success: 'sucesso' });
+    // Requisição com axios
+    const axiosRequest: Promise<AxiosResponse> = axios.post(
+      'https://node.pigtek.com.br/sessions-farms',
+      { nickname },
+      { headers: { 'Content-Type': 'application/json' } }
+    );
+
+    // Promise.race para competir entre timeout e requisição
+    const response = await Promise.race([axiosRequest, timeoutPromise]);
+
+    // Verifica se a resposta é bem-sucedida
+    res.status(200).json({ success: 'sucesso' });
+  } catch (error: unknown) {
+    if (axios.isAxiosError(error)) {
+      // Tratamento específico para erros do Axios
+      console.error('Erro na requisição Axios:', error.message);
+      res.status(500).json({ error: `Erro Axios: ${error.message}` });
+    } else if (error instanceof Error) {
+      // Tratamento genérico para erros
+      console.error('Erro geral:', error.message);
+      res.status(500).json({ error: `Erro: ${error.message}` });
     } else {
-      res.status(500).json({ error: 'Erro na resposta do servidor externo' });
+      console.error('Erro desconhecido:', error);
+      res.status(500).json({ error: 'Erro desconhecido' });
     }
-  } catch (error: any) {
-    console.error('Erro ao fazer a requisição:', error.message);
-    res.status(500).json({ error: 'Erro na resposta do servidor externo' });
-    return false;
   }
-
-
-  res.json({ susses: 'sucesso' });
 });
+
 
 app.get('/activitie', async (req, res) => {
 
@@ -492,7 +568,7 @@ app.get('/scale/:balance', (req, res) => {
 wss.on('connection', (ws, req) => {
   console.log('Cliente conectado!');
 
-  ws.on('message', (message) => {
+  ws.on('message', (message: any) => {
     const msgString = Buffer.from(message).toString();
     console.log('Mensagem recebida do cliente:', msgString);
 
