@@ -14,48 +14,48 @@ import 'express-async-errors';
 import { errors } from 'celebrate';
 import { Server } from 'socket.io';
 import { spawn, execSync, exec } from 'child_process';
-import { SerialPort } from 'serialport';
-import { ReadlineParser } from '@serialport/parser-readline';
+// import { SerialPort } from 'serialport';
+// import { ReadlineParser } from '@serialport/parser-readline';
 import ngrok from '@ngrok/ngrok';
 import uploadConfig from '@config/upload';
 import AppError from '@shared/errors/AppError';
 import routes from './routes';
 // import rateLimiter from './middlewares/rateLimiter';
 // import upload from '@config/upload';
-
+import mqtt from 'mqtt';
 import '@shared/infra/typeorm';
 import '@shared/container';
 import { UUIDV4 } from 'sequelize';
 import axios, { AxiosResponse } from 'axios';
 
-interface PropsHandleEsp {
-  espSocket: WebSocket;
-  res: Response<any>;
-}
+// interface PropsHandleEsp {
+//   espSocket: WebSocket;
+//   res: Response<any>;
+// }
 
 const app = express();
-
+let balanceOnline = false;
 let cppProcess: any;
 let idCounting: any;
 let port: any
 let pythonProcess: any = null;
 
-
 let cppClient: WebSocket | null = null; // Cliente WebSocket para C++
 // Não inserir URL de acesso prioritario
 // console.log('API CHEGOU NO CORS');
 // app.use(cors());
+const mqttClient = mqtt.connect('mqtt://10.42.0.1:1883')
 
 //SERIAL PORT
-try {
-  port = new SerialPort({
-    path: '/dev/ttyUSB0',
-    baudRate: 9600,
-  });
+// try {
+//   port = new SerialPort({
+//     path: '/dev/ttyUSB0',
+//     baudRate: 9600,
+//   });
 
-} catch (err) {
-  console.log('Eror', err)
-}
+// } catch (err) {
+//   console.log('Eror', err)
+// }
 
 app.use(bodyParser.json({ limit: '50mb' }));
 
@@ -272,6 +272,20 @@ app.get('/stop-recording', (req, res) => {
 //   });
 // });
 
+let sendBalanceData = false;
+
+mqttClient.on('connect', () => {
+  console.log('Conectado ao broker MQTT');
+  // Inscrevendo no tópico de dados da balança
+  mqttClient.subscribe('peso/leituras', (err) => {
+    if (err) {
+      console.error('Erro ao se inscrever no tópico MQTT:', err);
+    } else {
+      console.log('Inscrito no tópico esp/balance');
+    }
+  });
+});
+
 
 app.get('/spawn', async (req, res) => {
   const {
@@ -286,71 +300,46 @@ app.get('/spawn', async (req, res) => {
     balance,
   } = req.query;
 
-
-  // const data = {
-  //   quantity: 0,
-  //   weight: 0,
-  //   start_date: new Date(),
-  //   producer_id_internal,
-  //   farm_id_internal,
-  //   type,
-  //   lote,
-  //   name,
-  //   producer_id_sender,
-  //   farm_id_sender,
-  //   producer_id_received,
-  //   farm_id_received,
-  // };
-
   try {
-    //   const response = await fetch('http://localhost:3333/scores', {
-    //     method: 'POST', // or 'PUT'
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify(data),
-    //   });
-
-    //   const dataFormated: { id: string } = await response.json();
-    if (balance === 'online') {
-      try {
-
-        const espSocket = new WebSocket(espWsUrl);
-        await handleConectEsp8266({espSocket, res})
-      } catch (err) {
-        console.log('Erro na conexão com banalnça: ', err)
-        res.status(500).json({ error: `Erro na conexão com balança` });
-        return;
-      }
-    }
-
-
     idCounting = idScores;
 
     // Iniciar o programa C++ como um processo separado
-    cppProcess = spawn('/home/jet/pigtec/pigtec-cpp/main', [
-      idCounting,
-      cfg,
-      names,
-      weights,
-      saveVideo,
-      roteViewVideo,
-      mountVideo,
-      qtdCurrent
-    ]);
-
+    if(balance === 'online' && !balanceOnline) {
+      res.status(504).json({ message: 'Balança offline.' });
+      return
+    } else {
+      cppProcess = spawn('/home/jet/pigtec/pigtec-cpp/main', [
+        idCounting,
+        cfg,
+        names,
+        weights,
+        saveVideo,
+        roteViewVideo,
+        mountVideo,
+        qtdCurrent
+      ]);
+      
+    }
     cppProcess.stdout.on('data', (data: any) => {
       console.log(`Saída do programa C++: ${data}`);
-      // Aqui você pode enviar a saída para o cliente WebSocket, se necessário
+      // const message = data.toString();
+      // // Aqui você pode enviar a saída para o cliente WebSocket, se necessário
+
+      // wss.clients.forEach((client) => {
+      //   if (client.readyState === WebSocket.OPEN) {
+      //     client.send(JSON.stringify({ type: 'stdout', message }));
+      //   }
+      // });
+
     });
 
     cppProcess.stderr.on('data', (data: any) => {
       console.error(`Erro do programa C++: ${data}`);
-      wss.clients.forEach(function each(client) {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send('program_error');
-        }
-      });
+      // wss.clients.forEach(function each(client) {
+      //   if (client.readyState === WebSocket.OPEN) {
+      //     client.send(`program_error: '${data}'`);
+      //   }
+      // });
       // Aqui você pode lidar com os erros do programa C++
     });
 
@@ -362,7 +351,12 @@ app.get('/spawn', async (req, res) => {
           client.send('program_finalized');
         }
       });
+
+      // Desabilitar envio de dados da balança quando o processo C++ for encerrado
+      sendBalanceData = false;
     });
+
+    sendBalanceData = balance === 'online';
 
 
     res.status(200).json({ message: 'Programa C++ iniciado' });
@@ -374,48 +368,65 @@ app.get('/spawn', async (req, res) => {
   }
 });
 
-async function handleConectEsp8266({espSocket, res}: PropsHandleEsp) {
-  try {
-    espSocket.on('open', () => {
-      console.log('Conectado ao WebSocket do ESP');
-    });
+mqttClient.on('message', (topic, message) => {
+  // console.log('top', topic)
+  // if (topic === 'peso/leituras' && sendBalanceData) {
+  const weightData = Buffer.from(message).toString();
 
-    espSocket.on('message', (data: any) => {
+  // console.log(`Peso recebido via MQTT: ${weightData}`);
 
-      // Converte os dados de Buffer para string
-      const msgString = Buffer.from(data).toString();
-
-      // Aqui você pode tratar os dados, por exemplo, removendo os caracteres indesejados
-      // Como o ESP pode estar enviando valores como '-10.3\r\n', você pode querer limpar ou ajustar isso.
-      // Exemplo: remova os caracteres '\r\n' e separe as leituras em um array
-      const readings = msgString.split("\r\n").filter((value) => value.trim() !== "");
-
-      // Se você quiser enviar a última leitura:
-      const latestReading = readings[readings.length - 1];
-      console.log('Última leitura:', latestReading);
+  // Enviar dados aos clientes WebSocket conectados
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(`scaleData ${weightData}`);
+    }
+  });
+  // }
+});
 
 
-      // Enviar os dados para todos os clientes conectados
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          // Escolha o que enviar: latestReading ou averageReading
-          client.send(`scaleData ${msgString}`);
-        }
-      });
+// async function handleConectEsp8266({espSocket, res}: PropsHandleEsp) {
+//   try {
+//     espSocket.on('open', () => {
+//       console.log('Conectado ao WebSocket do ESP');
+//     });
 
-      espSocket.on('close', () => {
-        console.log('Cliente desconectado');
-      });
-    });
+//     espSocket.on('message', (data: any) => {
 
-    espSocket.on('error', (err: any) => {
-      console.error('Erro na conexão com o ESP:', err);
-    });
-  } catch (err) {
-    console.log('Error', err)
-  }
-}
-//STREAM 2
+//       // Converte os dados de Buffer para string
+//       const msgString = Buffer.from(data).toString();
+
+//       // Aqui você pode tratar os dados, por exemplo, removendo os caracteres indesejados
+//       // Como o ESP pode estar enviando valores como '-10.3\r\n', você pode querer limpar ou ajustar isso.
+//       // Exemplo: remova os caracteres '\r\n' e separe as leituras em um array
+//       const readings = msgString.split("\r\n").filter((value) => value.trim() !== "");
+
+//       // Se você quiser enviar a última leitura:
+//       const latestReading = readings[readings.length - 1];
+//       console.log('Última leitura:', latestReading);
+
+
+//       // Enviar os dados para todos os clientes conectados
+//       wss.clients.forEach(client => {
+//         if (client.readyState === WebSocket.OPEN) {
+//           // Escolha o que enviar: latestReading ou averageReading
+//           client.send(`scaleData ${msgString}`);
+//         }
+//       });
+
+//       espSocket.on('close', () => {
+//         console.log('Cliente desconectado');
+//       });
+//     });
+
+//     espSocket.on('error', (err: any) => {
+//       console.error('Erro na conexão com o ESP:', err);
+//     });
+//   } catch (err) {
+//     console.log('Error', err)
+//   }
+// }
+// //STREAM 2
 
 app.get('/video', (req, res) => {
   const { videoPath } = req.query; // Path to your video file
@@ -466,13 +477,72 @@ app.get('/videos', (req, res) => {
   res.json(videosMap);
 });
 
+
 app.get('/activitie-balance', async (req: Request, res: Response): Promise<void> => {
   try {
-    const espSocket = new WebSocket(espWsUrl);
-    handleConectEsp8266({espSocket, res})
+    const isBalanceOnline = await checkBalanceStatus();
+
+    if (isBalanceOnline) {
+      console.log('Balança online');
+      sendBalanceData = true; // Habilita o envio de dados
+      res.status(200).json({ message: 'Balança online.' });
+    } else {
+      console.log('Balança offline');
+      sendBalanceData = false; // Desabilita o envio de dados
+      res.status(504).json({ message: 'Balança offline.' });
+    }
   } catch (error: unknown) {
-    console.log('error', error)
+    console.error('Erro ao verificar status da balança:', error);
+    res.status(500).json({ message: 'Erro ao verificar status da balança.' });
   }
+});
+// Função para enviar o ping e esperar resposta
+async function checkBalanceStatus(): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    // Publicar mensagem MQTT para solicitar o status
+    mqttClient.publish('balance/status', 'ping', (err) => {
+      if (err) {
+        console.log('Erro ao publicar mensagem MQTT:', err);
+        return reject(false);
+      }
+
+      console.log('Mensagem "ping" enviada para o tópico balance/status.');
+    });
+
+    // Espera a resposta até o timeout
+    console.log('ponto do time')
+    const timeout = 3000; // Tempo limite em milissegundos
+    const timer = setTimeout(() => {
+      if (!balanceOnline) {
+        console.log('Timeout: Balança offline');
+        resolve(false);
+      }
+    }, timeout);
+
+    // Verifica se a balança responde
+    mqttClient.on('message', (topic, message) => {
+      if (topic === 'balance/status/response') {
+        const payload = message.toString();
+        console.log(`Resposta da balança: ${payload}`);
+
+        if (payload === 'pong') {
+          balanceOnline = true;
+          clearTimeout(timer); // Limpa o timeout assim que a resposta for recebida
+          console.log('Balança online');
+          resolve(true); // Retorna true para indicar que a balança está online
+        }
+      }
+    });
+  });
+}
+
+mqttClient.on('connect', () => {
+  console.log('Conectado ao broker MQTT');
+  mqttClient.subscribe('balance/status/response', (err) => {
+    if (err) {
+      console.log('Erro ao se inscrever no tópico: ', err);
+    }
+  });
 });
 
 app.get('/activitie-database', async (req: Request, res: Response): Promise<void> => {
@@ -518,51 +588,51 @@ app.get('/activitie', async (req, res) => {
   res.json({ susses: 'sucesso' });
 });
 
-app.get('/scale/:balance', (req, res) => {
-  const { balance } = req.params;
+// app.get('/scale/:balance', (req, res) => {
+//   const { balance } = req.params;
 
-  if (balance === 'online') {
-    const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
+//   if (balance === 'online') {
+//     const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
 
-    port.open((err: any) => {
-      console.log('ERROR', err)
-      // if (err) {
-      //   console.error('Erro ao abrir a porta serial:', err.message);
-      //   res.status(500).json({ error: 'Erro ao abrir a porta serial' });
-      //   return;
-      // }
+//     port.open((err: any) => {
+//       console.log('ERROR', err)
+//       // if (err) {
+//       //   console.error('Erro ao abrir a porta serial:', err.message);
+//       //   res.status(500).json({ error: 'Erro ao abrir a porta serial' });
+//       //   return;
+//       // }
 
-      parser.on('data', handleSendData);
+//       parser.on('data', handleSendData);
 
-      function handleSendData(scale: string) {
-        res.status(200).json({
-          scale: scale,
-        });
-        parser.pause();
-        port.close((err: { message: any; }) => {
-          if (err) {
-            console.error('Erro ao fechar a porta serial:', err.message);
-          } else {
-            console.log('Porta serial fechada com sucesso.');
-          }
-        });
-      }
-    });
+//       function handleSendData(scale: string) {
+//         res.status(200).json({
+//           scale: scale,
+//         });
+//         parser.pause();
+//         port.close((err: { message: any; }) => {
+//           if (err) {
+//             console.error('Erro ao fechar a porta serial:', err.message);
+//           } else {
+//             console.log('Porta serial fechada com sucesso.');
+//           }
+//         });
+//       }
+//     });
 
-    port.on('error', (err: { message: any; }) => {
-      console.error('Erro na porta serial:', err.message);
-      res.status(500).json({ error: 'Erro na porta serial' });
-    });
-  } else {
-    return res.status(200).json({
-      scale: 0,
-    });
-  }
+//     port.on('error', (err: { message: any; }) => {
+//       console.error('Erro na porta serial:', err.message);
+//       res.status(500).json({ error: 'Erro na porta serial' });
+//     });
+//   } else {
+//     return res.status(200).json({
+//       scale: 0,
+//     });
+//   }
 
-  // res.status(200).json({
-  // scale: 10,
-  // });
-});
+//   // res.status(200).json({
+//   // scale: 10,
+//   // });
+// });
 
 // WebSocket
 wss.on('connection', (ws, req) => {
