@@ -288,6 +288,25 @@ mqttClient.on('connect', () => {
   });
 });
 
+function isProcessRunning(processName: string) {
+  try {
+    // Usa 'pgrep' para verificar se o processo está rodando
+    const result = execSync(`pgrep -f ${processName}`).toString().trim();
+    return result !== ''; // Retorna verdadeiro se encontrou um PID
+  } catch (error) {
+    return false; // Se 'pgrep' não encontrar nada, retorna falso
+  }
+}
+
+function killProcess(processName: string) {
+  try {
+    execSync(`pkill -f ${processName}`);
+    console.log(`Processo ${processName} encerrado com sucesso.`);
+  } catch (error) {
+    console.log(`Nenhum processo ${processName} foi encontrado para encerrar.`);
+  }
+}
+
 
 app.get('/spawn', async (req, res) => {
   const {
@@ -300,17 +319,26 @@ app.get('/spawn', async (req, res) => {
     idScores,
     qtdCurrent,
     balance,
+    typeContage,
+    threshold,
   } = req.query;
 
   try {
     idCounting = idScores;
+
+    // const processName = "main"; // Nome do processo
+
+    // if (isProcessRunning(processName)) {
+    //   console.log(`O processo ${processName} já está rodando. Encerrando...`);
+    //   killProcess(processName);
+    // }
 
     // Iniciar o programa C++ como um processo separado
     if(balance === 'online' && !balanceOnline) {
       res.status(504).json({ message: 'Balança offline.' });
       return
     } else {
-      cppProcess = spawn('/home/jet/projects/darknet_opencv/main', [
+      cppProcess = spawn('/home/jet/pigtec/pigtec-cpp/main', [
         idCounting,
         cfg,
         names,
@@ -318,7 +346,9 @@ app.get('/spawn', async (req, res) => {
         saveVideo,
         roteViewVideo,
         mountVideo,
-        qtdCurrent
+        qtdCurrent,
+        typeContage,
+        threshold
       ]);
       
     }
@@ -336,7 +366,8 @@ app.get('/spawn', async (req, res) => {
     });
 
     cppProcess.stderr.on('data', (data: any) => {
-      console.error(`Erro do programa C++: ${data}`);
+      // ####console.error(`Erro do programa C++: ${data}`);
+
       // wss.clients.forEach(function each(client) {
       //   if (client.readyState === WebSocket.OPEN) {
       //     client.send(`program_error: '${data}'`);
@@ -633,18 +664,30 @@ app.post('/authentication', (req, res) => {
 });
 
 app.post('/terminateProgram', (req, res) => {
-  console.log('Encerrando o programa C++');
-  terminateCppProgram(); // Função que encerra o programa C++
-  res.status(200).json({ message: 'Programa C++ encerrado' });
+  try {
+    console.log('Encerrando o programa C++');
+    terminateCppProgram(); // Função que encerra o programa C++
+    console.log('PROGRAMA ENCERRADO')
+    res.status(200).json({ message: 'Programa C++ encerrado' });
+  } catch (err) {
+    console.log('ERRO AO FINALIZAR', err)
+    wss.clients.forEach(function each(client) {
+      client.send('program_finalized');
+    });
+  }
 });
 
 const terminateCppProgram = () => {
   // var proc = require('child_process').spawn('mongod');
-  cppProcess.kill('SIGINT');
-
-  wss.clients.forEach(function each(client) {
-    client.send('program_finalized');
-  });
+  try {
+    cppProcess.kill('SIGINT');
+  
+    wss.clients.forEach(function each(client) {
+      client.send('program_finalized');
+    });
+  } catch (err) {
+    console.log('PROBLEMAS AO FINALIZAR PROGRAMA', err)
+  }
 };
 
 app.delete('/videos/:videoName', (req, res) => {
