@@ -40,11 +40,8 @@ let idCounting: any;
 let port: any
 let pythonProcess: any = null;
 
-<<<<<<< HEAD
-=======
 let lastMessage = ''; 
 
->>>>>>> main
 let cppClient: WebSocket | null = null; // Cliente WebSocket para C++
 // Não inserir URL de acesso prioritario
 // console.log('API CHEGOU NO CORS');
@@ -197,22 +194,15 @@ app.get('/record-video/', (req, res) => {
   try {
     // const { videoComand } = req.params;
     // console.log('comando do video', videoComand)
-<<<<<<< HEAD
-=======
-
-    // if (videoComand !== 'gravar video') {
-    const stringFormated = `/home/jet/pigtec/opecv-camera/build/WebcamCapture`
-    cppProcess = spawn("/home/jet/pigtec/opecv-camera/build/WebcamCapture", [stringFormated])
->>>>>>> main
 
     // if (videoComand !== 'gravar video') {
     const stringFormated = `/home/jet/pigtec/opecv-camera/build/WebcamCapture`
     cppProcess = spawn("/home/jet/pigtec/opecv-camera/build/WebcamCapture", [stringFormated])
 
-<<<<<<< HEAD
+    // if (videoComand !== 'gravar video') {
+    const stringFormated = `/home/jet/pigtec/opecv-camera/build/WebcamCapture`
+    cppProcess = spawn("/home/jet/pigtec/opecv-camera/build/WebcamCapture", [stringFormated])
 
-=======
->>>>>>> main
     cppProcess.stdout.on('data', (data: any) => {
       console.log(`Saída do programa C++: ${data}`);
       // Aqui você pode enviar a saída para o cliente WebSocket, se necessário
@@ -272,7 +262,6 @@ app.get('/stop-recording', (req, res) => {
 
 
 // app.get('/list-videos', (req, res) => {
-<<<<<<< HEAD
 
 //   fs.readdir(videosDir, (err, files) => {
 //     if (err) {
@@ -290,25 +279,6 @@ app.get('/stop-recording', (req, res) => {
 
 let sendBalanceData = false;
 
-=======
-
-//   fs.readdir(videosDir, (err, files) => {
-//     if (err) {
-//       console.error(`Erro ao ler diretório de vídeos: ${err}`);
-//       return res.status(500).json({ error: 'Erro ao ler diretório de vídeos' });
-//     }
-
-//     const videos = files.filter(file => path.extname(file).toLowerCase() === '.mp4');
-
-//     const videoPaths = videos.map(video => path.join(videosDir, video));
-
-//     res.json({ videos: videoPaths });
-//   });
-// });
-
-let sendBalanceData = false;
-
->>>>>>> main
 mqttClient.on('connect', () => {
   console.log('Conectado ao broker MQTT');
   // Inscrevendo no tópico de dados da balança
@@ -352,19 +322,14 @@ app.get('/spawn', async (req, res) => {
     idScores,
     qtdCurrent,
     balance,
-<<<<<<< HEAD
-=======
     typeContage,
     threshold,
     stream,
     viewCamera,
->>>>>>> main
   } = req.query;
 
   try {
     idCounting = idScores;
-<<<<<<< HEAD
-=======
     console.log('dados spaw', {
       cfg,
       names,
@@ -386,7 +351,6 @@ app.get('/spawn', async (req, res) => {
     //   console.log(`O processo ${processName} já está rodando. Encerrando...`);
     //   killProcess(processName);
     // }
->>>>>>> main
 
     // Iniciar o programa C++ como um processo separado
     if(balance === 'online' && !balanceOnline) {
@@ -401,15 +365,11 @@ app.get('/spawn', async (req, res) => {
         saveVideo,
         roteViewVideo,
         mountVideo,
-<<<<<<< HEAD
-        qtdCurrent
-=======
         qtdCurrent,
         typeContage,
         threshold,
         stream,
         viewCamera
->>>>>>> main
       ]);
       
     }
@@ -427,12 +387,8 @@ app.get('/spawn', async (req, res) => {
     });
 
     cppProcess.stderr.on('data', (data: any) => {
-<<<<<<< HEAD
-      console.error(`Erro do programa C++: ${data}`);
-=======
       console.error(`##Erro do programa C++: ${data}`);
 
->>>>>>> main
       // wss.clients.forEach(function each(client) {
       //   if (client.readyState === WebSocket.OPEN) {
       //     client.send(`program_error: '${data}'`);
@@ -681,64 +637,6 @@ app.get('/activitie-database', async (req: Request, res: Response): Promise<void
   }
 });
 
-<<<<<<< HEAD
-
-app.get('/activitie', async (req, res) => {
-
-  res.json({ susses: 'sucesso' });
-});
-
-// app.get('/scale/:balance', (req, res) => {
-//   const { balance } = req.params;
-
-//   if (balance === 'online') {
-//     const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
-
-//     port.open((err: any) => {
-//       console.log('ERROR', err)
-//       // if (err) {
-//       //   console.error('Erro ao abrir a porta serial:', err.message);
-//       //   res.status(500).json({ error: 'Erro ao abrir a porta serial' });
-//       //   return;
-//       // }
-
-//       parser.on('data', handleSendData);
-
-//       function handleSendData(scale: string) {
-//         res.status(200).json({
-//           scale: scale,
-//         });
-//         parser.pause();
-//         port.close((err: { message: any; }) => {
-//           if (err) {
-//             console.error('Erro ao fechar a porta serial:', err.message);
-//           } else {
-//             console.log('Porta serial fechada com sucesso.');
-//           }
-//         });
-//       }
-//     });
-
-//     port.on('error', (err: { message: any; }) => {
-//       console.error('Erro na porta serial:', err.message);
-//       res.status(500).json({ error: 'Erro na porta serial' });
-//     });
-//   } else {
-//     return res.status(200).json({
-//       scale: 0,
-//     });
-//   }
-
-//   // res.status(200).json({
-//   // scale: 10,
-//   // });
-// });
-
-// WebSocket
-wss.on('connection', (ws, req) => {
-  console.log('Cliente conectado!');
-
-=======
 
 app.get('/activitie', async (req, res) => {
 
@@ -754,7 +652,6 @@ wss.on('connection', (ws, req) => {
     ws.send(lastMessage);
   }
 
->>>>>>> main
   ws.on('message', (message: any) => {
     const msgString = Buffer.from(message).toString();
 
