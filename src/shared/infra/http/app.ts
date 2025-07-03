@@ -321,11 +321,27 @@ app.get('/spawn', async (req, res) => {
     balance,
     typeContage,
     threshold,
+    stream,
+    viewCamera,
   } = req.query;
 
   try {
     idCounting = idScores;
-
+    console.log('dados spaw', {
+      cfg,
+      names,
+      weights,
+      saveVideo,
+      roteViewVideo,
+      mountVideo,
+      idScores,
+      qtdCurrent,
+      balance,
+      typeContage,
+      threshold,
+      stream,
+      viewCamera,
+    })
     // const processName = "main"; // Nome do processo
 
     // if (isProcessRunning(processName)) {
@@ -348,7 +364,9 @@ app.get('/spawn', async (req, res) => {
         mountVideo,
         qtdCurrent,
         typeContage,
-        threshold
+        threshold,
+        stream,
+        viewCamera
       ]);
       
     }
@@ -366,7 +384,7 @@ app.get('/spawn', async (req, res) => {
     });
 
     cppProcess.stderr.on('data', (data: any) => {
-      // ####console.error(`Erro do programa C++: ${data}`);
+      console.error(`##Erro do programa C++: ${data}`);
 
       // wss.clients.forEach(function each(client) {
       //   if (client.readyState === WebSocket.OPEN) {
