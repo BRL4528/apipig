@@ -40,6 +40,11 @@ let idCounting: any;
 let port: any
 let pythonProcess: any = null;
 
+<<<<<<< HEAD
+=======
+let lastMessage = ''; 
+
+>>>>>>> main
 let cppClient: WebSocket | null = null; // Cliente WebSocket para C++
 // Não inserir URL de acesso prioritario
 // console.log('API CHEGOU NO CORS');
@@ -192,12 +197,22 @@ app.get('/record-video/', (req, res) => {
   try {
     // const { videoComand } = req.params;
     // console.log('comando do video', videoComand)
+<<<<<<< HEAD
+=======
+
+    // if (videoComand !== 'gravar video') {
+    const stringFormated = `/home/jet/pigtec/opecv-camera/build/WebcamCapture`
+    cppProcess = spawn("/home/jet/pigtec/opecv-camera/build/WebcamCapture", [stringFormated])
+>>>>>>> main
 
     // if (videoComand !== 'gravar video') {
     const stringFormated = `/home/jet/pigtec/opecv-camera/build/WebcamCapture`
     cppProcess = spawn("/home/jet/pigtec/opecv-camera/build/WebcamCapture", [stringFormated])
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> main
     cppProcess.stdout.on('data', (data: any) => {
       console.log(`Saída do programa C++: ${data}`);
       // Aqui você pode enviar a saída para o cliente WebSocket, se necessário
@@ -257,6 +272,7 @@ app.get('/stop-recording', (req, res) => {
 
 
 // app.get('/list-videos', (req, res) => {
+<<<<<<< HEAD
 
 //   fs.readdir(videosDir, (err, files) => {
 //     if (err) {
@@ -274,6 +290,25 @@ app.get('/stop-recording', (req, res) => {
 
 let sendBalanceData = false;
 
+=======
+
+//   fs.readdir(videosDir, (err, files) => {
+//     if (err) {
+//       console.error(`Erro ao ler diretório de vídeos: ${err}`);
+//       return res.status(500).json({ error: 'Erro ao ler diretório de vídeos' });
+//     }
+
+//     const videos = files.filter(file => path.extname(file).toLowerCase() === '.mp4');
+
+//     const videoPaths = videos.map(video => path.join(videosDir, video));
+
+//     res.json({ videos: videoPaths });
+//   });
+// });
+
+let sendBalanceData = false;
+
+>>>>>>> main
 mqttClient.on('connect', () => {
   console.log('Conectado ao broker MQTT');
   // Inscrevendo no tópico de dados da balança
@@ -285,6 +320,25 @@ mqttClient.on('connect', () => {
     }
   });
 });
+
+function isProcessRunning(processName: string) {
+  try {
+    // Usa 'pgrep' para verificar se o processo está rodando
+    const result = execSync(`pgrep -f ${processName}`).toString().trim();
+    return result !== ''; // Retorna verdadeiro se encontrou um PID
+  } catch (error) {
+    return false; // Se 'pgrep' não encontrar nada, retorna falso
+  }
+}
+
+function killProcess(processName: string) {
+  try {
+    execSync(`pkill -f ${processName}`);
+    console.log(`Processo ${processName} encerrado com sucesso.`);
+  } catch (error) {
+    console.log(`Nenhum processo ${processName} foi encontrado para encerrar.`);
+  }
+}
 
 
 app.get('/spawn', async (req, res) => {
@@ -298,10 +352,41 @@ app.get('/spawn', async (req, res) => {
     idScores,
     qtdCurrent,
     balance,
+<<<<<<< HEAD
+=======
+    typeContage,
+    threshold,
+    stream,
+    viewCamera,
+>>>>>>> main
   } = req.query;
 
   try {
     idCounting = idScores;
+<<<<<<< HEAD
+=======
+    console.log('dados spaw', {
+      cfg,
+      names,
+      weights,
+      saveVideo,
+      roteViewVideo,
+      mountVideo,
+      idScores,
+      qtdCurrent,
+      balance,
+      typeContage,
+      threshold,
+      stream,
+      viewCamera,
+    })
+    // const processName = "main"; // Nome do processo
+
+    // if (isProcessRunning(processName)) {
+    //   console.log(`O processo ${processName} já está rodando. Encerrando...`);
+    //   killProcess(processName);
+    // }
+>>>>>>> main
 
     // Iniciar o programa C++ como um processo separado
     if(balance === 'online' && !balanceOnline) {
@@ -316,7 +401,15 @@ app.get('/spawn', async (req, res) => {
         saveVideo,
         roteViewVideo,
         mountVideo,
+<<<<<<< HEAD
         qtdCurrent
+=======
+        qtdCurrent,
+        typeContage,
+        threshold,
+        stream,
+        viewCamera
+>>>>>>> main
       ]);
       
     }
@@ -334,7 +427,12 @@ app.get('/spawn', async (req, res) => {
     });
 
     cppProcess.stderr.on('data', (data: any) => {
+<<<<<<< HEAD
       console.error(`Erro do programa C++: ${data}`);
+=======
+      console.error(`##Erro do programa C++: ${data}`);
+
+>>>>>>> main
       // wss.clients.forEach(function each(client) {
       //   if (client.readyState === WebSocket.OPEN) {
       //     client.send(`program_error: '${data}'`);
@@ -349,6 +447,7 @@ app.get('/spawn', async (req, res) => {
       wss.clients.forEach(function each(client) {
         if (client.readyState === WebSocket.OPEN) {
           client.send('program_finalized');
+          lastMessage = ''
         }
       });
 
@@ -582,6 +681,7 @@ app.get('/activitie-database', async (req: Request, res: Response): Promise<void
   }
 });
 
+<<<<<<< HEAD
 
 app.get('/activitie', async (req, res) => {
 
@@ -638,14 +738,33 @@ app.get('/activitie', async (req, res) => {
 wss.on('connection', (ws, req) => {
   console.log('Cliente conectado!');
 
+=======
+
+app.get('/activitie', async (req, res) => {
+
+  res.json({ susses: 'sucesso' });
+});
+
+wss.on('connection', (ws, req) => {
+  console.log('Cliente conectado!');
+
+  // Se houver uma última mensagem armazenada, enviá-la ao novo cliente
+  if (lastMessage) {
+    console.log('Enviando última mensagem ao cliente reconectado:', lastMessage);
+    ws.send(lastMessage);
+  }
+
+>>>>>>> main
   ws.on('message', (message: any) => {
     const msgString = Buffer.from(message).toString();
-    console.log('Mensagem recebida do cliente:', msgString);
+
+    lastMessage = msgString; // Atualiza a última mensagem recebida
 
     // Broadcast da mensagem para todos os clientes conectados
-    wss.clients.forEach(function each(client) {
+    wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(msgString); // Envia a mensagem para todos os clientes conectados
+        console.log('MENSAGEM ENVIADA:', msgString);
+        client.send(msgString);
       }
     });
   });
@@ -669,18 +788,30 @@ app.post('/authentication', (req, res) => {
 });
 
 app.post('/terminateProgram', (req, res) => {
-  console.log('Encerrando o programa C++');
-  terminateCppProgram(); // Função que encerra o programa C++
-  res.status(200).json({ message: 'Programa C++ encerrado' });
+  try {
+    console.log('Encerrando o programa C++');
+    terminateCppProgram(); // Função que encerra o programa C++
+    console.log('PROGRAMA ENCERRADO')
+    res.status(200).json({ message: 'Programa C++ encerrado' });
+  } catch (err) {
+    console.log('ERRO AO FINALIZAR', err)
+    wss.clients.forEach(function each(client) {
+      client.send('program_finalized');
+    });
+  }
 });
 
 const terminateCppProgram = () => {
   // var proc = require('child_process').spawn('mongod');
-  cppProcess.kill('SIGINT');
-
-  wss.clients.forEach(function each(client) {
-    client.send('program_finalized');
-  });
+  try {
+    cppProcess.kill('SIGINT');
+  
+    wss.clients.forEach(function each(client) {
+      client.send('program_finalized');
+    });
+  } catch (err) {
+    console.log('PROBLEMAS AO FINALIZAR PROGRAMA', err)
+  }
 };
 
 app.delete('/videos/:videoName', (req, res) => {
@@ -875,6 +1006,17 @@ app.post('/disconnect-wifi', (req, res) => {
   }
 });
 
+app.get('/count-in-progress', (req, res) => {
+  try {
+ 
+      res.json(lastMessage);
+ 
+  } catch (error) {
+    res.status(500).json({
+      error: 'Erro ao enviar contagem em andamento.',
+    });
+  }
+})
 
 
 export { serverHttp, io };
